@@ -13,27 +13,129 @@
 	</script>
 
 	<script>
-		function elt(diagram, id) {
-            return document.querySelector("#" + diagram + " #" + id);
-        }
+function elt(diagram, id) {
+  return document.querySelector("#" + diagram + " #" + id);
+}
 
-        window.onload = function() {
-            makeDiagram("diagram1",[makeBall(0,0, -2,0, 0,0,0),
-                                    makeBall(0,2, -2,0, 0,0,1),
-                                    makeBall(0,-2,-2,0, 0,0,-1)]);
-            var y=0.45
-            makeDiagram("diagram2",[makeBall(8.6,5.8, -3.5,y,  0,0,3)]);
+function getRandomPosition() {
+  return [Math.random() * 14 - 7, Math.random() * 14 - 7];
+}
 
+// Returns the angle needed to disrupt the ball.
+// Closer to 0 is more straight
+// More than abs 90 (PI/2) is impossible
+function getAngleHoleGhostWhite(holeX, holeY, ghostX, ghostY, whiteX, whiteY) {
+  var angle = Math.atan2(whiteY - ghostY, whiteX - ghostX) -
+    Math.atan2(holeY - ghostY, holeX - ghostX);
+  if (angle < 0) {
+    angle += 2 * Math.PI;
+  }
+  return Math.PI - angle;
+}
 
-        }
+window.onload = function () {
+  var diameter = 1.01;
+  var holeX = -14.5;
+  var holeY = 7.75;
+  var ballX = -6;
+  var ballY = 2;
+  var whiteX = 2;
+  var whiteY = 2;
 
-        function makeDiagram(id,balls) {
-            new library.Diagram({balls:balls}, elt(id,"canvas").getContext("2d"), elt(id,"control"));
-        }
+  var [ballX, ballY] = getRandomPosition();
+  var [whiteX, whiteY] = getRandomPosition();
 
-        function makeBall(x,y,vx,vy,wx,wy,wz) {
-            return {pos:{x:x,y:y,z:0},vel:{x:vx,y:vy,z:0},rvel:{x:wx,y:wy,z:wz},state:"Stationary"}; 
-        }
+  var holes = [
+    [-14.5, -7.75], // Top left
+    [0, -7.75], // Top middle
+    [14.5, -7.75], // Top right
+    [14.5, 7.75], // Bottom right
+    [0, 7.75], // Bottom middle
+    [-14.5, 7.75], // Bottom left
+  ];
+
+  var bestAngleHole = Infinity;
+  var bestHoleX;
+  var bestHoleY;
+  for (var i = 0; i < holes.length; ++i) {
+    var [holeX, holeY] = holes[i];
+    var [ghostX, ghostY] = getGhost(diameter, holeX, holeY, ballX, ballY, whiteX, whiteY);
+    var angleHole = getAngleHoleGhostWhite(holeX, holeY, ghostX, ghostY, whiteX, whiteY);
+    if (Math.abs(angleHole) < bestAngleHole) {
+      bestAngleHole = Math.abs(angleHole);
+      bestHoleX = holeX;
+      bestHoleY = holeY;
+    }
+  }
+  holeX = bestHoleX;
+  holeY = bestHoleY;
+  console.log(bestAngleHole * 180 / Math.PI);
+
+  var [ghostX, ghostY] = getGhost(diameter, holeX, holeY, ballX, ballY, whiteX, whiteY);
+  var angle = getAngle(whiteX, whiteY, ghostX, ghostY);
+  var power = 2;
+  if (bestAngleHole * 180 / Math.PI > 45) {
+    power = 4;
+  } else if (bestAngleHole * 180 / Math.PI > 80) {
+    power = 8;
+  }
+  var [vectorX, vectorY] = getVector(angle, power);
+
+  makeDiagram("diagram1", [
+    makeBall(whiteX, whiteY, vectorX, vectorY, 0, 0, 0),
+    makeBall(ballX, ballY, 0, 0, 0, 0, 0),
+    // makeBall(ghostX, ghostY, 0, 0, 0, 0, 0),
+    // makeBall(holeX, holeY, 0, 0, 0, 0, 0),
+    // makeBall(-3, -5, 0, 0, 0, 0, 0),
+  ]);
+};
+
+function getGhost(diameter, holeX, holeY, ballX, ballY, whiteX, whiteY) {
+  var distX = ballX - holeX;
+  var dist = Math.hypot(ballX - holeX, ballY - holeY);
+  var a = Math.acos(distX / dist);
+
+  var x = (distX / dist) * diameter;
+  var y = Math.sin(a) * diameter;
+
+  var ghostX = ballX + x;
+  var ghostY = ballY + y * Math.sign(ballY - holeY);
+
+  return [ghostX, ghostY];
+}
+
+function getAngle(whiteX, whiteY, ghostX, ghostY) {
+  var angle = Math.atan((whiteY - ghostY) / (whiteX - ghostX));
+  if (whiteX > ghostX) {
+    angle += Math.PI;
+  }
+  return angle;
+}
+
+function getVector(angle, power) {
+  return [
+    Math.cos(angle) * power,
+    Math.sin(angle) * power,
+  ];
+}
+
+function makeDiagram(id, balls) {
+  new library.Diagram(
+    { balls: balls },
+    elt(id, "canvas").getContext("2d"),
+    elt(id, "control")
+  );
+}
+
+function makeBall(x, y, vx, vy, wx, wy, wz) {
+  return {
+    pos: { x: x, y: y, z: 0 },
+    vel: { x: vx, y: vy, z: 0 },
+    rvel: { x: wx, y: wy, z: wz },
+    state: "Stationary",
+  };
+}
+
 	</script>
 </head>
 
@@ -41,12 +143,6 @@
 	<div id="diagram1">
 		<canvas id="canvas" width="400" height="210" style="border:1px solid #111111;"></canvas>
 		<div id="control"></div>
-	</div>
-
-	<div id="diagram2">
-		<canvas id="canvas" width="200" height="105" style="border:1px solid #111111;"></canvas>
-		<div id="control"></div>
-        <p>white ball should return to cushion
 	</div>
 
 	<footer>
